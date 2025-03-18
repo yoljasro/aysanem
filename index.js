@@ -1,99 +1,134 @@
-const { Telegraf, Markup } = require("telegraf");
-const express = require("express");
-const axios = require("axios");
+import TelegramBot from "node-telegram-bot-api";
+import express from "express";
+import axios from "axios";
+import dotenv from "dotenv";
 
-const BOT_TOKEN = "7897654306:AAHOyFxYuts-FLFUlFNP9xHSIfYqQ-HU8PY"; // Telegram bot tokeningiz
-const SERVICE_ID = "67728";
-const MERCHANT_ID = "36125";
-const SECRET_KEY = "5A4hp0yDU3zSCF";
-const MERCHANT_USER_ID = "52347";
-const COURSE_PRICE = 1000; // Kurs narxi so'mda
+dotenv.config();
 
-const bot = new Telegraf(BOT_TOKEN);
+const BOT_TOKEN = "7897654306:AAHOyFxYuts-FLFUlFNP9xHSIfYqQ-HU8PY";
+const AMOCRM_URL = process.env.AMOCRM_URL;
+const AMOCRM_TOKEN = process.env.AMOCRM_TOKEN;
+const CLICK_SECRET_KEY = process.env.CLICK_SECRET_KEY;
+
+const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 const app = express();
 app.use(express.json());
+const userState = {};
 
-const users = {}; // Foydalanuvchilarni vaqtinchalik saqlash
+bot.onText(/\/start/, async (msg) => {
+    const chatId = msg.chat.id;
 
-// 🚀 Start komandasi
-bot.start((ctx) => {
-    ctx.reply(
-        "Assalomu alaykum! 👋\n\n" +
-        "Bu bot orqali siz kursga ro‘yxatdan o‘tib, Click orqali to‘lov qilishingiz mumkin.",
-        Markup.keyboard([
-            ["📋 Ro‘yxatdan o‘tish"],
-        ]).resize()
-    );
+    await bot.sendVideoNote(chatId, "./video/aysanem.mp4");
+
+    await bot.sendMessage(chatId, "Quyidagi tugmani bosing va ma'lumotlaringizni kiriting:", {
+        reply_markup: {
+            inline_keyboard: [[{ text: "\ud83d\udce9 Sovg'ani olish", callback_data: "register" }]],
+        },
+    });
 });
 
-// 📌 Ro‘yxatdan o‘tish jarayoni
-bot.hears("📋 Ro‘yxatdan o‘tish", (ctx) => {
-    ctx.reply("Iltimos, ismingiz va familiyangizni kiriting (masalan: Jasur Saidaliyev).");
-    users[ctx.from.id] = { step: "name" }; // Bosqichni saqlash
-});
+bot.on("callback_query", async (query) => {
+    const chatId = query.message.chat.id;
 
-// 📌 Ism va familiya olish
-bot.on("text", (ctx) => {
-    const userId = ctx.from.id;
-
-    if (users[userId] && users[userId].step === "name") {
-        users[userId].name = ctx.message.text;
-        users[userId].step = "phone";
-        ctx.reply("📞 Endi telefon raqamingizni yuboring.", Markup.keyboard([
-            [Markup.button.contactRequest("📲 Raqamni yuborish")]
-        ]).resize());
+    if (query.data === "register") {
+        userState[chatId] = { step: "name" };
+        await bot.sendMessage(chatId, "Iltimos, ismingizni kiriting:");
+    } else if (query.data === "click_payment") {
+        const paymentUrl = `https://my.click.uz/services/pay?service_id=67728&merchant_id=36125&amount=1000&transaction_param=${chatId}`;
+        await bot.sendMessage(chatId, `\ud83d\udcb0 Click orqali to‘lov qilish uchun quyidagi havolani bosing:\n\n[Click orqali to‘lov](${paymentUrl})`, { parse_mode: "Markdown" });
+    } else if (query.data === "other_payment") {
+        await bot.sendMessage(chatId, "Boshqa to‘lov usullari hozircha mavjud emas.");
     }
 });
 
-// 📌 Telefon raqam olish
-bot.on("contact", (ctx) => {
-    const userId = ctx.from.id;
+bot.on("message", async (msg) => {
+    const chatId = msg.chat.id;
+    const text = msg.text;
+    
+    if (userState[chatId]) {
+        if (userState[chatId].step === "name") {
+            userState[chatId].name = text;
+            userState[chatId].step = "phone";
 
-    if (users[userId] && users[userId].step === "phone") {
-        users[userId].phone = ctx.message.contact.phone_number;
-        users[userId].step = "done";
-
-        ctx.reply(
-            `✅ Ro‘yxatdan o‘tish muvaffaqiyatli yakunlandi!\n\n👤 *FIO:* ${users[userId].name}\n📞 *Telefon:* ${users[userId].phone}`,
-            { parse_mode: "Markdown", ...Markup.removeKeyboard() }
-        );
-
-        // To‘lov tugmalarini yuborish
-        ctx.reply(
-            "Kurs uchun to‘lov qilish usulini tanlang:",
-            Markup.inlineKeyboard([
-                [Markup.button.callback("💳 Click orqali to‘lov", "pay_click")],
-                [Markup.button.callback("🔄 Boshqa usul", "pay_other")]
-            ])
-        );
+            await bot.sendMessage(chatId, "Telefon raqamingizni yuboring:", {
+                reply_markup: {
+                    keyboard: [[{ text: "\ud83d\udcde Telefon raqamni yuborish", request_contact: true }]],
+                    resize_keyboard: true,
+                    one_time_keyboard: true,
+                },
+            });
+        }
     }
 });
 
-// 📌 Click orqali to‘lov tugmasi bosilganda Click ilovasiga yo‘naltirish
-bot.action("pay_click", (ctx) => {
-    const userId = ctx.from.id;
-    const orderID = `ORDER_${userId}_${Date.now()}`;
-    const amount = COURSE_PRICE * 100; // Click tizimi tiyinda ishlaydi
+bot.on("contact", async (msg) => {
+    const chatId = msg.chat.id;
+    const phoneNumber = msg.contact.phone_number;
 
-    // Click to‘lov havolasi
-    const clickPaymentUrl = `https://my.click.uz/services/pay?service_id=${SERVICE_ID}&merchant_id=${MERCHANT_ID}&amount=${amount}&transaction_param=${orderID}`;
+    if (userState[chatId] && userState[chatId].step === "phone") {
+        userState[chatId].phone = phoneNumber;
+        await sendToAmoCRM(userState[chatId]);
 
-    ctx.reply(
-        "To‘lovni amalga oshirish uchun quyidagi tugmani bosing:",
-        Markup.inlineKeyboard([
-            Markup.button.url("💳 Click orqali to‘lov", clickPaymentUrl),
-        ])
-    );
+        await bot.sendMessage(chatId, "✅ Ma'lumotlaringiz qabul qilindi! Tez orada siz bilan bog'lanamiz.", { 
+            reply_markup: { remove_keyboard: true } 
+        });
+
+        // PDF faylni yuborish
+        await bot.sendDocument(chatId, "./pdf/smm.pdf", {
+            caption: "📄 Kurs haqida to‘liq ma’lumot shu faylda."
+        });
+
+        // Telegram kanalga qo'shilish uchun havola
+        await bot.sendMessage(chatId, "📢 Yangiliklardan xabardor bo‘lish uchun kanalimizga qo‘shiling: [Bizning kanal] https://t.me/Aysanemx0n", {
+            parse_mode: "Markdown"
+        });
+
+        // To‘lov tugmalari
+        await bot.sendMessage(chatId, "💳 To‘lov qilish uchun quyidagi tugmalardan birini tanlang:", {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "Click orqali to‘lov", callback_data: "click_payment" }],
+                    [{ text: "Boshqa usul", callback_data: "other_payment" }]
+                ],
+            }
+        });
+
+        delete userState[chatId];
+    }
 });
 
-// 📌 Boshqa to‘lov usullari tugmasi
-bot.action("pay_other", (ctx) => {
-    ctx.reply("Boshqa to‘lov usullari haqida ma’lumot uchun admin bilan bog‘laning.");
+
+const sendToAmoCRM = async (userData) => {
+    try {
+        await axios.post(AMOCRM_URL, {
+            name: userData.name,
+            phone: userData.phone,
+        }, {
+            headers: { Authorization: `Bearer ${AMOCRM_TOKEN}` }
+        });
+    } catch (error) {
+        console.error("AMOCRM ga yuborishda xatolik:", error);
+    }
+};
+
+app.post("/api/click/prepare", (req, res) => {
+    console.log("Click prepare:", req.body);
+    res.json({ click_trans_id: req.body.click_trans_id, merchant_trans_id: req.body.merchant_trans_id, error: 0, error_note: "Success" });
 });
 
-// 🚀 Botni ishga tushirish
-bot.launch();
-console.log("✅ Telegram bot ishga tushdi!");
+app.post("/api/click/complete", (req, res) => {
+    console.log("Click complete:", req.body);
+    if (req.body.error === 0) {
+        bot.sendMessage(req.body.merchant_trans_id, "✅ To‘lovingiz muvaffaqiyatli amalga oshirildi!\nRaxmat!");
+    } else {
+        bot.sendMessage(req.body.merchant_trans_id, "❌ To‘lovda xatolik yuz berdi. Iltimos, qayta urinib ko‘ring.");
+    }
+    res.json({ click_trans_id: req.body.click_trans_id, merchant_trans_id: req.body.merchant_trans_id, error: 0, error_note: "Success" });
+});
 
-// 🚀 Express serverini ishga tushirish (Agar Click callback ishlatsa)
-app.listen(4000, () => console.log("✅ Express server 4000-portda ishga tushdi!"));
+bot.onText(/\/check_payment/, async (msg) => {
+    await bot.sendMessage(msg.chat.id, "\ud83d\udccb To‘lov holatini tekshirish uchun Click ilovasiga kiring.");
+});
+
+app.listen(4000, () => console.log("Server 4000-portda ishlamoqda..."));
+console.log("Bot ishga tushdi...");
