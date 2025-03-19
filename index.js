@@ -113,8 +113,16 @@ const sendToAmoCRM = async (userData) => {
 
 app.post("/api/click/prepare", (req, res) => {
     console.log("Click prepare:", req.body);
-    res.json({ click_trans_id: req.body.click_trans_id, merchant_trans_id: req.body.merchant_trans_id, error: 0, error_note: "Success" });
+
+    res.json({
+        click_trans_id: req.body.click_trans_id,
+        merchant_trans_id: req.body.merchant_trans_id,
+        merchant_prepare_id: 123456,  // <== BU YERGA ID GENERATSIYA QILISH KERAK!
+        error: 0,
+        error_note: "Success"
+    });
 });
+
 
 app.post("/api/click/complete", (req, res) => {
     console.log("Click complete:", req.body);
