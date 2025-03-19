@@ -34,7 +34,7 @@ bot.on("callback_query", async (query) => {
         userState[chatId] = { step: "name" };
         await bot.sendMessage(chatId, "Iltimos, ismingizni kiriting:");
     } else if (query.data === "click_payment") {
-        const paymentUrl = `https://my.click.uz/services/pay?service_id=67728&merchant_id=36125&amount=1000&transaction_param=${chatId}`;
+        const paymentUrl = `https://my.click.uz/services/pay?service_id=67728&merchant_id=36125&amount=10000&transaction_param=${chatId}`;
         await bot.sendMessage(chatId, `\ud83d\udcb0 Click orqali to‘lov qilish uchun quyidagi havolani bosing:\n\n[Click orqali to‘lov](${paymentUrl})`, { parse_mode: "Markdown" });
     } else if (query.data === "other_payment") {
         await bot.sendMessage(chatId, "Boshqa to‘lov usullari hozircha mavjud emas.");
