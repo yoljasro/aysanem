@@ -63,7 +63,7 @@ bot.on("callback_query", async (query) => {
   } else if (["start", "premium", "vip"].includes(data)) {
     // Agar boshqa tariflarni tanlash kerak bo‘lsa
     const tarifMap = {
-      start: 1000 ,
+      start: 2955000 ,
       premium: 5350000,
       vip: 8960000,
     };
@@ -114,7 +114,7 @@ bot.on("contact", async (msg) => {
     await bot.sendMessage(chatId, "💰 Quyidagi tariflardan birini tanlang:", {
       reply_markup: {
         inline_keyboard: [
-          [{ text: "💼 Start – 1000  so’m", callback_data: "start" }],
+          [{ text: "💼 Start – 2 955 000  so’m", callback_data: "start" }],
           [{ text: "🚀 Premium – 5 350 000 so’m", callback_data: "premium" }],
           [{ text: "👑 VIP – 8 960 000 so’m", callback_data: "vip" }],
           [{ text: "💳 Click orqali to‘lov", callback_data: "click_payment" }],
