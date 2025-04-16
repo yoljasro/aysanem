@@ -13,8 +13,9 @@ const CHANNEL_USERNAME = "@Aysanemx0n";
 const CLICK_SERVICE_ID = 67728;
 const CLICK_MERCHANT_ID = 36125;
 const CLICK_SECRET_KEY = "5A4hp0yDU3zSCF";
-// Click servisi Prepare va Complete uchun bitta callback URL ko‘rsatiladi
-const CLICK_RETURN_URL = "https://farxunda-khadji.uz/payment/callback";
+// Click uchun prepare va complete URL’lari admin panelda alohida kiritiladi,
+// shuning uchun bu yerda payment URL qurishda return_url parametrini ishlatmaymiz.
+// Agar kerak bo‘lsa, Click kabinetingizdagi sozlamalarni qayta tekshirib chiqing.
 
 // AMO CRM konfiguratsiyasi
 const AMOCRM_ACCESS_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImp0aSI6IjhmMGY2MDI5OGMwMzI5MTk1NTBkMWQzYjhhNTQwYWRkYzhmM2JmMzNmZDY0MTM4MzhhZjY4Y2IwNDk2NTA5MDc1MmVmZWVkOThmNDAyM2QxIn0.eyJhdWQiOiIxYWQ5M2Y2ZC0xYmRmLTQzOWYtOTUwMi01YzBiM2I0MTY3NjkiLCJqdGkiOiI4ZjBmNjAyOThjMDMyOTE5NTUwZDFkM2I4YTU0MGFkZGM4ZjNiZjMzZmQ2NDEzODM4YWY2OGNiMDQ5NjUwOTA3NTJlZmVlZDk4ZjQwMjNkMSIsImlhdCI6MTc0NDEyMjY5NCwibmJmIjoxNzQ0MTIyNjk0LCJleHAiOjE3NDQ4NDgwMDAsInN1YiI6IjExODAyOTQyIiwiZ3JhbnRfdHlwZSI6IiIsImFjY291bnRfaWQiOjMyMDc4OTUwLCJiYXNlX2RvbWFpbiI6ImFtb2NybS5ydSIsInZlcnNpb24iOjIsInNjb3BlcyI6WyJjcm0iLCJmaWxlcyIsImZpbGVzX2RlbGV0ZSIsIm5vdGlmaWNhdGlvbnMiLCJwdXNoX25vdGlmaWNhdGlvbnMiXSwiaGFzaF91dWlkIjoiOTdjMTlhOGItODBjYS00NWRhLThlYjMtNmQzMTkzZDNiYzBiIiwiYXBpX2RvbWFpbiI6ImFwaS1iLmFtb2NybS5ydSJ9.PqPJmr_94KuijXuWZmbgOkmCVJRivm7YDEmN9o_5BvIr_5e-qoTbLgCxgl0zouQWxpiOzqt-7KASnuXnMfhiAlFenNKaCe4S9AZOqIuL4vrIynGnOxdQUCTY-LbTtjoPI811eONtPCpfk6A93hVzwg5LiGDvL-PyjswE2hAzXAXtdstvkPD-Ps6nwSs5c1wYajyGL7jYC9d95VRUrIpSZ67AnPK8ulANax-716rjGwS61TKsR56CngoBSWmiipk2__KTaA-fosZnBobJLkAXN3fOP6tn-tIloZML75muA3eD6xD-6nK_Ga5-xfvlsBab4qzp3yqN_fDoOOOEdc62Xw";
@@ -51,11 +52,16 @@ bot.on("callback_query", async (query) => {
   const data = query.data;
 
   if (data === "register") {
-    // Ro‘yxatdan o‘tish bosqichi: ismi kiritiladi
+    // Ro‘yxatdan o‘tish bosqichi: ismingizni kiritasiz
     userState[chatId] = { step: "name" };
     await bot.sendMessage(chatId, "Iltimos, ismingizni kiriting:");
+  } else if (data === "click_payment") {
+    // Oldingi click integratsiyasida ishlagan to‘lov havolasi
+    // Misol uchun: summa 10000 so'm
+    const paymentUrl = `https://my.click.uz/services/pay?service_id=${CLICK_SERVICE_ID}&merchant_id=${CLICK_MERCHANT_ID}&amount=10000&transaction_param=${chatId}`;
+    await bot.sendMessage(chatId, `💰 Click orqali to‘lov qilish uchun quyidagi havolani bosing:\n\n[Click orqali to‘lov](${paymentUrl})`, { parse_mode: "Markdown" });
   } else if (["start", "premium", "vip"].includes(data)) {
-    // Tarif tanlash bosqichi
+    // Agar boshqa tariflarni tanlash kerak bo‘lsa
     const tarifMap = {
       start: 1000,
       premium: 5350000,
@@ -63,9 +69,7 @@ bot.on("callback_query", async (query) => {
     };
     const summa = tarifMap[data];
     paymentStates[chatId] = data;
-
-    const paymentUrl = `https://my.click.uz/services/pay?service_id=${CLICK_SERVICE_ID}&merchant_id=${CLICK_MERCHANT_ID}&amount=${summa}&transaction_param=${chatId}&return_url=${CLICK_RETURN_URL}`;
-
+    const paymentUrl = `https://my.click.uz/services/pay?service_id=${CLICK_SERVICE_ID}&merchant_id=${CLICK_MERCHANT_ID}&amount=${summa}&transaction_param=${chatId}`;
     await bot.sendMessage(chatId, `💳 To‘lov summasi: ${summa.toLocaleString()} so‘m\nClick orqali to‘lovni amalga oshiring:`, {
       reply_markup: {
         inline_keyboard: [[{ text: "🔗 Click orqali to‘lash", url: paymentUrl }]],
@@ -82,10 +86,9 @@ bot.on("message", async (msg) => {
   const text = msg.text;
   
   if (userState[chatId]?.step === "name") {
-    // Ismni saqlaymiz va telefon raqam bosqichiga o‘tamiz
+    // Ismni saqlab, telefon bosqichiga o‘tamiz
     userState[chatId].name = text;
     userState[chatId].step = "phone";
-    
     await bot.sendMessage(chatId, "📞 Telefon raqamingizni yuboring:", {
       reply_markup: {
         keyboard: [[{ text: "📞 Telefon raqamni yuborish", request_contact: true }]],
@@ -99,18 +102,14 @@ bot.on("message", async (msg) => {
 bot.on("contact", async (msg) => {
   const chatId = msg.chat.id;
   const phoneNumber = msg.contact.phone_number;
-
   if (userState[chatId]?.step === "phone") {
     userState[chatId].phone = phoneNumber;
-
-    // AMO CRM ga yuborish
+    // AMO CRM ga ma'lumot yuborish
     await sendDataToAmoCRM(userState[chatId].name, phoneNumber);
-
     // PDF hujjatni yuborish
     await bot.sendDocument(chatId, "./pdf/smm.pdf", {
       caption: "📄 Kurs haqida to‘liq ma’lumot shu faylda.",
     });
-
     // Tarif variantlarini tanlash
     await bot.sendMessage(chatId, "💰 Quyidagi tariflardan birini tanlang:", {
       reply_markup: {
@@ -118,6 +117,7 @@ bot.on("contact", async (msg) => {
           [{ text: "💼 Start – 1000 so’m", callback_data: "start" }],
           [{ text: "🚀 Premium – 5 350 000 so’m", callback_data: "premium" }],
           [{ text: "👑 VIP – 8 960 000 so’m", callback_data: "vip" }],
+          [{ text: "💳 Click orqali to‘lov", callback_data: "click_payment" }],
         ],
       },
     });
@@ -125,75 +125,38 @@ bot.on("contact", async (msg) => {
 });
 
 //
-// 4. Click Payment Callback Endpoint (prepare & complete bosqichlari)
-// URL: https://farxunda-khadji.uz/payment/callback
+// 4. Click Payment Callback Endpoints
 //
-app.post("/payment/callback", async (req, res) => {
-  const {
-    click_trans_id,
-    service_id,
-    merchant_trans_id,
-    amount,
-    action,
-    error,
-    error_note,
-    sign_string,
-    sign_time,
-    transaction_param
-  } = req.body;
+// a) Prepare Endpoint
+// URL: https://farxunda-khadji.uz/api/click/prepare
+app.post("/api/click/prepare", (req, res) => {
+  console.log("Click prepare:", req.body);
 
-  // MD5 imzosini hisoblash
-  const expectedSign = crypto.createHash("md5")
-    .update(
-      String(click_trans_id) +
-      String(service_id) +
-      CLICK_SECRET_KEY +
-      String(merchant_trans_id) +
-      String(amount) +
-      String(action) +
-      String(sign_time)
-    )
-    .digest("hex");
+  // Bu yerda merchant_prepare_id ni generatsiya qilish mumkin,
+  // masalan, Math.floor(Math.random()*100000) yoki DB orqali ID olish.
+  res.json({
+    click_trans_id: req.body.click_trans_id,
+    merchant_trans_id: req.body.merchant_trans_id,
+    merchant_prepare_id: Math.floor(Math.random() * 100000),
+    error: 0,
+    error_note: "Success"
+  });
+});
 
-  if (expectedSign !== sign_string) {
-    return res.json({
-      error: -1,
-      error_note: "SIGNATURE_CHECK_FAILED",
-    });
+// b) Complete Endpoint
+// URL: https://farxunda-khadji.uz/api/click/complete
+app.post("/api/click/complete", (req, res) => {
+  console.log("Click complete:", req.body);
+  if (req.body.error === 0) {
+    bot.sendMessage(req.body.merchant_trans_id, "✅ To‘lovingiz muvaffaqiyatli amalga oshirildi!\nRaxmat!");
+  } else {
+    bot.sendMessage(req.body.merchant_trans_id, "❌ To‘lovda xatolik yuz berdi. Iltimos, qayta urinib ko‘ring.");
   }
-
-  // transaction_param orqali chatId olamiz (foydalanuvchi chatId si)
-  const chatId = transaction_param;
-
-  // Action 0 - Prepare bosqichi: Click mijozni tayyorlash bosqichi
-  if (Number(action) === 0) {
-    return res.json({
-      error: 0,
-      error_note: "Success",
-      merchant_trans_id,
-      merchant_prepare_id: Math.floor(Math.random() * 100000),
-    });
-  }
-
-  // Action 1 - Complete bosqichi: To‘lov yakunlangandan keyingi javob
-  if (Number(action) === 1) {
-    if (Number(error) === 0) {
-      await bot.sendMessage(chatId, "✅ To‘lov muvaffaqiyatli amalga oshirildi. Kurslar sizga tez orada taqdim etiladi!");
-    } else {
-      await bot.sendMessage(chatId, "❌ To‘lov amalga oshmadi. Iltimos, qayta urinib ko‘ring.");
-    }
-    return res.json({
-      error,
-      error_note: error_note || "Complete error",
-      merchant_trans_id,
-      merchant_confirm_id: Math.floor(Math.random() * 100000),
-    });
-  }
-
-  // Agar action kutilmagan qiymat bo‘lsa
-  return res.json({
-    error: -2,
-    error_note: "Unknown action",
+  res.json({
+    click_trans_id: req.body.click_trans_id,
+    merchant_trans_id: req.body.merchant_trans_id,
+    error: 0,
+    error_note: "Success"
   });
 });
 
