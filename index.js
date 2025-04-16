@@ -10,7 +10,7 @@ const CHANNEL_USERNAME = "@Aysanemx0n";
 const CLICK_SERVICE_ID = 67728;
 const CLICK_MERCHANT_ID = 36125;
 const CLICK_SECRET_KEY = "5A4hp0yDU3zSCF";
-const CLICK_RETURN_URL = "https://yourserver.com/payment/callback"; // bu manzilga Click POST jo‘natadi
+const CLICK_RETURN_URL = "https://farxunda-khadji.uz/api/click/prepare"; // bu manzilga Click POST jo‘natadi
 
 
 // AMOCRM konfiguratsiyasi
@@ -45,7 +45,7 @@ bot.on("callback_query", async (query) => {
     await bot.sendMessage(chatId, "Iltimos, ismingizni kiriting:");
   } else if (["start", "premium", "vip"].includes(data)) {
     const tarifMap = {
-      start: 2955000,
+      start: 1000,
       premium: 5350000,
       vip: 8960000,
     };
@@ -100,30 +100,80 @@ bot.on("contact", async (msg) => {
     await bot.sendMessage(chatId, "💰 Quyidagi tariflardan birini tanlang:", {
       reply_markup: {
         inline_keyboard: [
-          [{ text: "💼 Start – 2 955 000 so’m", callback_data: "start" }],
+          [{ text: "💼 Start – 1000 so’m", callback_data: "start" }],
           [{ text: "🚀 Premium – 5 350 000 so’m", callback_data: "premium" }],
           [{ text: "👑 VIP – 8 960 000 so’m", callback_data: "vip" }],
         ],
       },
     });
   }
-});
+});z
 
 // === 3. CLICK to‘lovdan so‘ng keladigan so‘rovni qabul qilish
+import crypto from "crypto";
+
 app.post("/payment/callback", async (req, res) => {
-  const data = req.body;
+  const {
+    click_trans_id,
+    service_id,
+    merchant_trans_id,
+    amount,
+    action,
+    error,
+    error_note,
+    sign_string,
+    sign_time,
+    transaction_param
+  } = req.body;
 
-  const chatId = data.transaction_param;
-  const status = data.error;
+  // --- SIGNATURE tekshirish ---
+  const hash = crypto.createHash("md5");
+  const expectedSign = hash
+    .update(
+      click_trans_id +
+      service_id +
+      CLICK_SECRET_KEY +
+      merchant_trans_id +
+      amount +
+      action +
+      sign_time
+    )
+    .digest("hex");
 
-  if (status === 0) {
+  if (expectedSign !== sign_string) {
+    return res.json({
+      error: -1,
+      error_note: "SIGNATURE_CHECK_FAILED"
+    });
+  }
+
+  const chatId = transaction_param;
+
+  // --- PREPARE: action == 0 ---
+  if (action === 0) {
+    return res.json({
+      error: 0,
+      error_note: "Success",
+      merchant_trans_id,
+      merchant_prepare_id: Math.floor(Math.random() * 100000) // yoki DB ID
+    });
+  }
+
+  // --- COMPLETE: action == 1 ---
+  if (error === 0) {
     await bot.sendMessage(chatId, "✅ To‘lov muvaffaqiyatli amalga oshirildi. Kurslar sizga tez orada taqdim etiladi!");
   } else {
     await bot.sendMessage(chatId, "❌ To‘lov amalga oshmadi. Iltimos, qayta urinib ko‘ring.");
   }
 
-  res.sendStatus(200);
+  return res.json({
+    error,
+    error_note: error_note || "Complete error",
+    merchant_trans_id,
+    merchant_confirm_id: Math.floor(Math.random() * 100000) // yoki DB ID
+  });
 });
+
 
 // === 4. AMO CRM yuborish (agar kerak bo‘lsa)
 const sendDataToAmoCRM = async (name, phone) => {
